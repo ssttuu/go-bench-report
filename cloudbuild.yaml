@@ -1,0 +1,8 @@
+steps:
+  - name: 'golang:1.11'
+    args: [
+      'go',
+      'test',
+      '-v',
+      './...',
+    ]
