@@ -1,4 +1,4 @@
-module github.com/stupschwartz/benchmark
+module github.com/stupschwartz/go-bench-report
 
 require (
 	cloud.google.com/go v0.33.1
