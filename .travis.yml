@@ -1,18 +1,51 @@
 language: go
-
 go:
-  - "1.11"
+  - '1.11'
+services:
+  - docker
 
-os:
-  - linux
-  - osx
+cache:
+  directories:
+    - $HOME/gcloud/
 
-dist: trusty
-sudo: false
+env:
+  - PATH=/home/travis/gcloud/google-cloud-sdk/bin:$PATH
+    GOOGLE_APPLICATION_CREDENTIALS=$TRAVIS_BUILD_DIR/travis.json
+
+before_install:
+  - which gcloud
+  - openssl aes-256-cbc -K $encrypted_ae7fa82082c4_key -iv $encrypted_ae7fa82082c4_iv
+    -in travis.json.enc -out ${GOOGLE_APPLICATION_CREDENTIALS} -d
+  - if [ ! -d $HOME/gcloud/google-cloud-sdk ]; then
+      mkdir -p $HOME/gcloud &&
+      wget https://dl.google.com/dl/cloudsdk/release/google-cloud-sdk.tar.gz --directory-prefix=$HOME/gcloud &&
+      cd $HOME/gcloud &&
+      tar xzf google-cloud-sdk.tar.gz &&
+      printf '\ny\n\ny\ny\n' | ./google-cloud-sdk/install.sh &&
+      cd $TRAVIS_BUILD_DIR;
+    fi
+  - source /home/travis/gcloud/google-cloud-sdk/path.bash.inc
+  - gcloud -q components update
+  - gcloud auth activate-service-account --key-file ${GOOGLE_APPLICATION_CREDENTIALS}
+  - mkdir -p /home/travis/.docker
+  - gcloud auth configure-docker --quiet
 
 install: true
-
-script:
-  - env GO111MODULE=on go build
-  - env GO111MODULE=on go test
-
+jobs:
+  include:
+      - stage: Go Test
+        script:
+        - env GO111MODULE=on go test
+    - stage: Docker Build
+      script:
+        - ./run docker-build
+        - ./run docker-push
+    - stage: Docker Push
+      if: branch = master
+      script:
+        - ./run docker-pull
+        - ./run docker-push-version
+    - stage: Tag Release
+      if: branch = master
+      script:
+        - ./run tag-release
