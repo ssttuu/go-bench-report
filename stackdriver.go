@@ -126,7 +126,6 @@ type stackdriver struct {
 }
 
 func (s *stackdriver) Upload(ctx context.Context, set parse.Set, cfg *Config) error {
-
 	err := s.createMetricDescriptors(ctx)
 	if err != nil {
 		return errors.Wrap(err, "creating metric descriptors")
@@ -152,20 +151,47 @@ func (s *stackdriver) Upload(ctx context.Context, set parse.Set, cfg *Config) er
 }
 
 func (s *stackdriver) createMetricDescriptors(ctx context.Context) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	metricDescriptors := []*metricpb.MetricDescriptor{allocatedBytesPerOp, allocationsPerOp, nanosecondsPerOp}
 	for _, descriptor := range metricDescriptors {
-		_, err := s.client.GetMetricDescriptor(ctx, &monitoringpb.GetMetricDescriptorRequest{
-			Name: monitoring.MetricProjectPath(s.projectID) + descriptor.Type,
-		})
+		errChan := make(chan error)
+		go func() {
+			_, err := s.client.GetMetricDescriptor(ctx, &monitoringpb.GetMetricDescriptorRequest{
+				Name: monitoring.MetricProjectPath(s.projectID) + descriptor.Type,
+			})
+			errChan <- err
+		}()
+
+		var err error
+		select {
+		case err = <-errChan:
+		case <-time.After(30 * time.Second):
+			return errors.New("timed out getting metric descriptor")
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if err == nil {
 			continue
 		}
 
-		// TODO: check error type
-		_, err = s.client.CreateMetricDescriptor(ctx, &monitoringpb.CreateMetricDescriptorRequest{
-			Name:             monitoring.MetricProjectPath(s.projectID),
-			MetricDescriptor: descriptor,
-		})
+		go func() {
+			// TODO: check error type
+			_, err = s.client.CreateMetricDescriptor(ctx, &monitoringpb.CreateMetricDescriptorRequest{
+				Name:             monitoring.MetricProjectPath(s.projectID),
+				MetricDescriptor: descriptor,
+			})
+			errChan <- err
+		}()
+
+		select {
+		case err = <-errChan:
+		case <-time.After(30 * time.Second):
+			return errors.New("timed out creating metric descriptor")
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 		if err != nil {
 			return errors.Wrap(err, "creating metric descriptor")
 		}
