@@ -2,39 +2,40 @@
 
 set -euo pipefail
 
-GIT_COMMIT=$(git rev-parse HEAD)
-GIT_COMMIT_SHORT=$(git rev-parse --short=10 HEAD)
+source .convenience/source "v0.7.1"
 
+GIT_ORG=ssttuu
+GIT_REPO=go-bench-report
 IMAGE_REPO=gcr.io/i-m-a-g-e-s
 IMAGE_NAME=go-bench-report
 
 export GO111MODULE=on
 
-function docker-login-with-json-key() {
-    cat "${1}" | docker login -u _json_key --password-stdin https://gcr.io
+function build() {
+    docker-build
 }
 
-function docker-build() {
-    docker build -t "${IMAGE_REPO}/${IMAGE_NAME}:${GIT_COMMIT_SHORT}" .
+function test() {
+    echo "TODO"
 }
 
-function docker-pull() {
-    docker pull "${IMAGE_REPO}/${IMAGE_NAME}:${GIT_COMMIT_SHORT}"
+function deploy() {
+    docker-push
 }
 
-function docker-push() {
-    docker push "${IMAGE_REPO}/${IMAGE_NAME}:${GIT_COMMIT_SHORT}"
+function release() {
+    git-tag
+    git-tag-push
+    git-release <<EOF
+{
+  "tag_name": "$(get-version)",
+  "target_commitish": "master",
+  "name": "$(get-version)",
+  "body": "$(get-version)",
+  "draft": false,
+  "prerelease": false
 }
-
-function docker-push-version() {
-    docker tag "${IMAGE_REPO}/${IMAGE_NAME}:${GIT_COMMIT_SHORT}" "${IMAGE_REPO}/${IMAGE_NAME}:$(cat VERSION)"
-    docker push "${IMAGE_REPO}/${IMAGE_NAME}:$(cat VERSION)"
-}
-
-function tag-release() {
-    local version=`cat VERSION`
-    git tag -a "${version}" -m "Release version ${version}" || :
-    git push origin "${version}" || :
+EOF
 }
 
 "$@"
