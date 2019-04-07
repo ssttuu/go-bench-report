@@ -20,6 +20,8 @@ function test() {
 }
 
 function deploy() {
+    # TODO: do not rebuild before deploying
+    docker-build
     docker-push
 }
 
