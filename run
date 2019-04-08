@@ -2,17 +2,23 @@
 
 set -euo pipefail
 
-source .convenience/source "v0.7.1"
+source .convenience/source "v0.8.1"
 
 GIT_ORG=ssttuu
 GIT_REPO=go-bench-report
-IMAGE_REPO=gcr.io/i-m-a-g-e-s
-IMAGE_NAME=go-bench-report
+IMAGE_HOST="gcr.io"
+IMAGE_REPO="${IMAGE_HOST}/i-m-a-g-e-s"
+IMAGE_NAME="go-bench-report"
 
 export GO111MODULE=on
 
 function build() {
-    docker-build
+    docker-build $(githash-short)
+    docker-push $(githash-short)
+}
+
+function docker-login-with-json-key() {
+    docker login -u _json_key --password-stdin https://${IMAGE_HOST}
 }
 
 function test() {
@@ -20,8 +26,8 @@ function test() {
 }
 
 function deploy() {
-    # TODO: do not rebuild before deploying
-    docker-build
+    docker-pull $(githash-short)
+    docker-tag $(githash-short) $(get-tags)
     docker-push
 }
 
